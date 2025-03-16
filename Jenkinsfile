@@ -21,7 +21,7 @@ pipeline {
                     // Запуск контейнера с nginx
                     sh """
                         docker run -d --name ${CONTAINER_NAME} -p ${HOST_PORT}:80 \
-                        -v $(pwd)/${HTML_FILE}:/usr/share/nginx/html/${HTML_FILE} \
+                        -v \$(pwd)/${HTML_FILE}:/usr/share/nginx/html/${HTML_FILE} \
                         nginx
                     """
                 }
