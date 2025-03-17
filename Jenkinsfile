@@ -15,6 +15,22 @@ pipeline {
             }
         }
 
+        stage('Check Changes') {
+            steps {
+                script {
+                    // Получаем список измененных файлов
+                    def changes = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
+                    
+                    // Проверяем, изменен ли index.html
+                    if (!changes.contains('index.html')) {
+                        echo 'No changes in index.html. Skipping build.'
+                        currentBuild.result = 'SUCCESS' // Пропустить сборку
+                        return
+                    }
+                }
+            }
+        }
+
         stage('Run Nginx Container') {
             steps {
                 script {
