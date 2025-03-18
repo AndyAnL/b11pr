@@ -15,22 +15,6 @@ pipeline {
             }
         }
 
-        stage('Check Changes') {
-            steps {
-                script {
-                    // Получаем список измененных файлов
-                    def changes = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
-                    
-                    // Проверяем, изменен ли index.html
-                    if (!changes.contains('index.html')) {
-                        echo 'No changes in index.html. Skipping build.'
-                        currentBuild.result = 'SUCCESS' // Пропустить сборку
-                        return
-                    }
-                }
-            }
-        }
-
         stage('Run Nginx Container') {
             steps {
                 script {
@@ -47,10 +31,36 @@ pipeline {
         stage('Check HTTP Response') {
             steps {
                 script {
-                    // Проверка кода ответа
-                    def responseCode = sh(script: "curl -s -o /dev/null -w '%{http_code}' http://localhost:${HOST_PORT}/${HTML_FILE}", returnStdout: true).trim()
-                    if (responseCode != '200') {
-                        error "HTTP response code is not 200. Got ${responseCode}"
+                    // Количество попыток
+                    int retries = 5
+                    // Задержка между попытками (в секундах)
+                    int delay = 5
+
+                    // Цикл для повторного запроса
+                    for (int i = 0; i < retries; i++) {
+                        try {
+                            // Проверка кода ответа
+                            def responseCode = sh(script: "curl -s -o /dev/null -w '%{http_code}' http://localhost:${HOST_PORT}/${HTML_FILE}", returnStdout: true).trim()
+                            
+                            // Если код ответа 200, завершаем цикл
+                            if (responseCode == '200') {
+                                echo "HTTP response code is 200. Nginx is ready."
+                                break
+                            } else {
+                                echo "Attempt ${i + 1}: HTTP response code is ${responseCode}. Retrying in ${delay} seconds..."
+                            }
+                        } catch (Exception e) {
+                            echo "Attempt ${i + 1}: Failed to connect to Nginx. Retrying in ${delay} seconds..."
+                        }
+
+                        // Задержка перед следующей попыткой
+                        sleep delay
+                    }
+
+                    // Если после всех попыток код ответа не 200, завершаем с ошибкой
+                    def finalResponseCode = sh(script: "curl -s -o /dev/null -w '%{http_code}' http://localhost:${HOST_PORT}/${HTML_FILE}", returnStdout: true).trim()
+                    if (finalResponseCode != '200') {
+                        error "HTTP response code is not 200 after ${retries} attempts. Got ${finalResponseCode}"
                     }
                 }
             }
@@ -74,36 +84,4 @@ pipeline {
         }
 
         stage('Send Email Notification') {
-            steps {
-                script {
-                    // Отправка email в случае успеха
-                    emailext (
-                        subject: 'Jenkins CI: Build Successful',
-                        body: 'The Jenkins CI pipeline has completed successfully.',
-                        to: 'andyan@bk.ru' // Укажите ваш email
-                    )
-                }
-            }
-        }
-    }
-
-    post {
-        always {
-            script {
-                // Остановка и удаление контейнера
-                sh "docker stop ${CONTAINER_NAME} || true"
-                sh "docker rm ${CONTAINER_NAME} || true"
-            }
-        }
-        failure {
-            script {
-                // Отправка email в случае ошибки
-                emailext (
-                    subject: 'Jenkins CI: Build Failed',
-                    body: 'The Jenkins CI pipeline has failed. Please check the logs.',
-                    to: 'andyan@bk.ru' // Укажите ваш email
-                )
-            }
-        }
-    }
-}
+            steps
