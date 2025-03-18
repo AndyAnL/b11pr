@@ -84,4 +84,36 @@ pipeline {
         }
 
         stage('Send Email Notification') {
-            steps
+            steps {
+                script {
+                    // Отправка email в случае успеха
+                    emailext (
+                        subject: 'Jenkins CI: Build Successful',
+                        body: 'The Jenkins CI pipeline has completed successfully.',
+                        to: 'andyan@bk.ru' // Укажите ваш email
+                    )
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                // Остановка и удаление контейнера
+                sh "docker stop ${CONTAINER_NAME} || true"
+                sh "docker rm ${CONTAINER_NAME} || true"
+            }
+        }
+        failure {
+            script {
+                // Отправка email в случае ошибки
+                emailext (
+                    subject: 'Jenkins CI: Build Failed',
+                    body: 'The Jenkins CI pipeline has failed. Please check the logs.',
+                    to: 'andyan@bk.ru' // Укажите ваш email
+                )
+            }
+        }
+    }
+}
